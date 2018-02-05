@@ -126,6 +126,7 @@ void parse_osmium_t::stream_file(const std::string &filename, const std::string 
 
     osmium::io::Reader reader(infile);
     osmium::apply(reader, *this);
+    // TODO: implement a RxCpp version.
     reader.close();
 }
 

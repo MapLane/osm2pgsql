@@ -178,3 +178,21 @@ More information can be found in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 General queries can be sent to the tile-serving@ or dev@
 [mailing lists](http://wiki.openstreetmap.org/wiki/Mailing_lists).
+
+## Momenta customization ##
+
+customize by Momenta.ai Group: HD_map.
+using this project convert hd_map data.
+add hd_lane layer support.
+
+### TODO
+
+#### Basic
+
+- [ ] Add HD lane layer support.
+
+#### Enhancement
+
+- [ ] Implement a RxCpp version of `osmium::apply`
+
+- [ ] Translate OSM XML documentation of its Wiki.

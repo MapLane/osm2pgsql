@@ -43,7 +43,7 @@ void lua_tagtransform_t::check_lua_function_exists(const std::string &func_name)
 }
 
 bool lua_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
-                                     int *roads, export_list const &,
+                                     int *roads, int *lanes, export_list const &,
                                      taglist_t &out_tags, bool)
 {
     switch (o.type()) {
@@ -82,7 +82,7 @@ bool lua_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
 
     lua_pushinteger(L, sz);
 
-    if (lua_pcall(L, 2, (o.type() == osmium::item_type::way) ? 4 : 2, 0)) {
+    if (lua_pcall(L, 2, (o.type() == osmium::item_type::way) ? 5 : 2, 0)) {
         fprintf(stderr,
                 "Failed to execute lua function for basic tag processing: %s\n",
                 lua_tostring(L, -1));
@@ -91,6 +91,10 @@ bool lua_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
     }
 
     if (o.type() == osmium::item_type::way) {
+        if (lanes) {
+            *lanes = (int)lua_tointeger(L, -1);
+        }
+        lua_pop(L, 1);
         if (roads) {
             *roads = (int)lua_tointeger(L, -1);
         }
@@ -119,7 +123,7 @@ bool lua_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
 bool lua_tagtransform_t::filter_rel_member_tags(
     taglist_t const &rel_tags, osmium::memory::Buffer const &members,
     rolelist_t const &member_roles, int *member_superseded, int *make_boundary,
-    int *make_polygon, int *roads, export_list const &, taglist_t &out_tags,
+    int *make_polygon, int *roads, int *lanes, export_list const &, taglist_t &out_tags,
     bool)
 {
     size_t num_members = member_roles.size();
@@ -157,7 +161,7 @@ bool lua_tagtransform_t::filter_rel_member_tags(
 
     lua_pushnumber(L, num_members);
 
-    if (lua_pcall(L, 4, 6, 0)) {
+    if (lua_pcall(L, 4, 7, 0)) {
         fprintf(
             stderr,
             "Failed to execute lua function for relation tag processing: %s\n",
@@ -166,6 +170,8 @@ bool lua_tagtransform_t::filter_rel_member_tags(
         return 1;
     }
 
+    *lanes = (int)lua_tointeger(L, -1);
+    lua_pop(L, 1);
     *roads = (int)lua_tointeger(L, -1);
     lua_pop(L, 1);
     *make_polygon = (int)lua_tointeger(L, -1);

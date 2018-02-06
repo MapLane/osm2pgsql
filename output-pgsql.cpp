@@ -72,7 +72,7 @@ E4C1421D5BF24D06053E7DF4940
 5BF5BB39597FCDF4940
 */
 void output_pgsql_t::pgsql_out_way(osmium::Way const &way, taglist_t *tags,
-                                   bool polygon, bool roads)
+                                   bool polygon, bool roads, bool lanes)
 {
     if (polygon && way.is_closed()) {
         auto wkb = m_builder.get_wkb_polygon(way);
@@ -98,6 +98,8 @@ void output_pgsql_t::pgsql_out_way(osmium::Way const &way, taglist_t *tags,
             m_tables[t_line]->write_row(way.id(), *tags, wkb);
             if (roads) {
                 m_tables[t_roads]->write_row(way.id(), *tags, wkb);
+            } else if (lanes) {
+                m_tables[t_lanes]->write_row(way.id(), *tags, wkb);
             }
         }
 
@@ -162,12 +164,13 @@ int output_pgsql_t::pending_way(osmid_t id, int exists) {
         taglist_t outtags;
         int polygon;
         int roads;
+        int lanes;
         auto &way = buffer.get<osmium::Way>(0);
-        if (!m_tagtransform->filter_tags(way, &polygon, &roads,
+        if (!m_tagtransform->filter_tags(way, &polygon, &roads, &lanes,
                                          *m_export_list.get(), outtags)) {
             auto nnodes = m_mid->nodes_get_list(&(way.nodes()));
             if (nnodes > 1) {
-                pgsql_out_way(way, &outtags, polygon, roads);
+                pgsql_out_way(way, &outtags, polygon, roads, lanes);
                 return 1;
             }
         }
@@ -255,7 +258,7 @@ void output_pgsql_t::stop(osmium::thread::Pool *pool)
 int output_pgsql_t::node_add(osmium::Node const &node)
 {
     taglist_t outtags;
-    if (m_tagtransform->filter_tags(node, nullptr, nullptr,
+    if (m_tagtransform->filter_tags(node, nullptr, nullptr, nullptr,
                                     *m_export_list.get(), outtags))
         return 1;
 
@@ -270,10 +273,11 @@ int output_pgsql_t::way_add(osmium::Way *way)
 {
     int polygon = 0;
     int roads = 0;
+    int lanes = 0;
     taglist_t outtags;
 
     /* Check whether the way is: (1) Exportable, (2) Maybe a polygon */
-    auto filter = m_tagtransform->filter_tags(*way, &polygon, &roads,
+    auto filter = m_tagtransform->filter_tags(*way, &polygon, &roads, &lanes,
                                               *m_export_list.get(), outtags);
 
     /* If this isn't a polygon then it can not be part of a multipolygon
@@ -285,7 +289,7 @@ int output_pgsql_t::way_add(osmium::Way *way)
         /* Get actual node data and generate output */
         auto nnodes = m_mid->nodes_get_list(&(way->nodes()));
         if (nnodes > 1) {
-            pgsql_out_way(*way, &outtags, polygon, roads);
+            pgsql_out_way(*way, &outtags, polygon, roads, lanes);
         }
     }
     return 0;
@@ -297,7 +301,7 @@ int output_pgsql_t::pgsql_process_relation(osmium::Relation const &rel,
                                            bool pending)
 {
     taglist_t prefiltered_tags;
-    if (m_tagtransform->filter_tags(rel, nullptr, nullptr, *m_export_list.get(),
+    if (m_tagtransform->filter_tags(rel, nullptr, nullptr, nullptr, *m_export_list.get(),
                                     prefiltered_tags)) {
         return 1;
     }
@@ -318,6 +322,7 @@ int output_pgsql_t::pgsql_process_relation(osmium::Relation const &rel,
         return 0;
 
   int roads = 0;
+  int lanes = 0;
   int make_polygon = 0;
   int make_boundary = 0;
   std::vector<int> members_superseded(num_ways, 0);
@@ -327,7 +332,7 @@ int output_pgsql_t::pgsql_process_relation(osmium::Relation const &rel,
   // otherwise one or the other will be true.
   if (m_tagtransform->filter_rel_member_tags(
           prefiltered_tags, buffer, xrole, &(members_superseded[0]),
-          &make_boundary, &make_polygon, &roads, *m_export_list.get(),
+          &make_boundary, &make_polygon, &roads, &lanes, *m_export_list.get(),
           outtags)) {
       return 0;
   }
@@ -582,6 +587,10 @@ output_pgsql_t::output_pgsql_t(const middle_query_t *mid, const options_t &o)
                 break;
             case t_roads:
                 name += "_roads";
+                type = "LINESTRING";
+                break;
+            case t_lanes:
+                name += "_lanes";
                 type = "LINESTRING";
                 break;
             default:

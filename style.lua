@@ -24,6 +24,10 @@ polygon_keys = {
     'wetland'
 }
 
+lane_keys = {
+    'parameter_equation'
+}
+
 -- Objects without any of the following keys will be deleted
 generic_keys = {
     'access',
@@ -115,6 +119,12 @@ zordering_tags = {{ 'railway', nil, 5, 1}, { 'boundary', 'administrative', 0, 1}
     { 'highway', 'primary_link', 7, 1}, { 'highway', 'primary', 7, 1},
     { 'highway', 'trunk_link', 8, 1}, { 'highway', 'trunk', 8, 1},
     { 'highway', 'motorway_link', 9, 1}, { 'highway', 'motorway', 9, 1},
+    -- momenta_lane
+    { 'highway', 'lane-white-dash', 0, 2}, { 'highway', 'lane-white-solid', 0, 2},
+    { 'highway', 'lane-yellow-dash', 0, 2}, { 'highway', 'lane-yellow-solid', 0, 2},
+    { 'highway', 'lane-white-dash-double', 0, 2}, { 'highway', 'lane-white-solid-double', 0, 2},
+    { 'highway', 'lane-yellow-dash-double', 0, 2}, { 'highway', 'lane-yellow-solid-double', 0, 2},
+    { 'highway', 'lane-centerline', 0, 2}, { 'highway', 'lane', 0, 2},
 }
 
 function add_z_order(keyvalues)
@@ -133,6 +143,8 @@ function add_z_order(keyvalues)
             -- If the fourth component of the element of zordering_tags is 1, add the object to planet_osm_roads
             if (k[4] == 1) then
                 roads = 1
+            elseif(k[4] == 2) then
+                lanes = 1
             end
             z_order = z_order + k[3]
         end
@@ -141,7 +153,7 @@ function add_z_order(keyvalues)
     -- Add z_order as key/value combination
     keyvalues["z_order"] = z_order
 
-    return keyvalues, roads
+    return keyvalues, roads, lanes
 end
 
 -- Filtering on nodes, ways, and relations
@@ -202,6 +214,7 @@ function filter_tags_way (keyvalues, numberofkeys)
     filter = 0  -- Will object be filtered out?
     polygon = 0 -- Will object be treated as polygon?
     roads = 0   -- Will object be added to planet_osm_roads?
+    lanes = 0   -- Will object be added to momenta_lanes?
 
     -- Filter out objects that are filtered out by filter_tags_generic
     filter, keyvalues = filter_tags_generic(keyvalues, numberofkeys)
@@ -226,9 +239,9 @@ function filter_tags_way (keyvalues, numberofkeys)
     end
 
     -- Add z_order key/value combination and determine if the object should also be added to planet_osm_roads
-    keyvalues, roads = add_z_order(keyvalues)
+    keyvalues, roads, lanes = add_z_order(keyvalues)
 
-    return filter, keyvalues, polygon, roads
+    return filter, keyvalues, polygon, roads, lanes
 end
 
 function filter_tags_relation_member (keyvalues, keyvaluemembers, roles, membercount)
@@ -309,7 +322,7 @@ function filter_tags_relation_member (keyvalues, keyvaluemembers, roles, memberc
     end
 
     -- Add z_order key/value combination and determine if the object should also be added to planet_osm_roads
-    keyvalues, roads = add_z_order(keyvalues)
+    keyvalues, roads, lanes = add_z_order(keyvalues)
 
-    return filter, keyvalues, membersuperseded, linestring, polygon, roads
+    return filter, keyvalues, membersuperseded, linestring, polygon, roads, lanes
 end

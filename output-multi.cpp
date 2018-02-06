@@ -284,7 +284,7 @@ int output_multi_t::process_node(osmium::Node const &node)
 {
     // check if we are keeping this node
     taglist_t outtags;
-    auto filter = m_tagtransform->filter_tags(node, 0, 0, *m_export_list.get(),
+    auto filter = m_tagtransform->filter_tags(node, 0, 0, 0, *m_export_list.get(),
                                               outtags, true);
     if (!filter) {
         // grab its geom
@@ -313,7 +313,7 @@ int output_multi_t::reprocess_way(osmium::Way *way, bool exists)
     //check if we are keeping this way
     taglist_t outtags;
     unsigned int filter = m_tagtransform->filter_tags(
-        *way, 0, 0, *m_export_list.get(), outtags, true);
+        *way, 0, 0, 0, *m_export_list.get(), outtags, true);
     if (!filter) {
         m_mid->nodes_get_list(&(way->nodes()));
         auto geom = m_processor->process_way(*way, &m_builder);
@@ -327,7 +327,7 @@ int output_multi_t::reprocess_way(osmium::Way *way, bool exists)
 int output_multi_t::process_way(osmium::Way *way) {
     //check if we are keeping this way
     taglist_t outtags;
-    auto filter = m_tagtransform->filter_tags(*way, 0, 0, *m_export_list.get(), outtags, true);
+    auto filter = m_tagtransform->filter_tags(*way, 0, 0, 0, *m_export_list.get(), outtags, true);
     if (!filter) {
         //get the geom from the middle
         if (m_mid->nodes_get_list(&(way->nodes())) < 1)
@@ -360,7 +360,7 @@ int output_multi_t::process_relation(osmium::Relation const &rel,
 
     //does this relation have anything interesting to us
     taglist_t rel_outtags;
-    auto filter = m_tagtransform->filter_tags(rel, 0, 0, *m_export_list.get(),
+    auto filter = m_tagtransform->filter_tags(rel, 0, 0, 0, *m_export_list.get(),
                                               rel_outtags, true);
     if (!filter) {
         //TODO: move this into geometry processor, figure a way to come back for tag transform
@@ -375,12 +375,13 @@ int output_multi_t::process_relation(osmium::Relation const &rel,
         //TODO: find a less hacky way to do the matching/superseded and tag copying stuff without
         //all this trickery
         int roads;
+        int lanes;
         int make_boundary, make_polygon;
         taglist_t outtags;
         filter = m_tagtransform->filter_rel_member_tags(
             rel_outtags, m_relation_helper.data, m_relation_helper.roles,
             &m_relation_helper.superseded.front(), &make_boundary,
-            &make_polygon, &roads, *m_export_list.get(), outtags, true);
+            &make_polygon, &roads, &lanes, *m_export_list.get(), outtags, true);
         if (!filter)
         {
             m_relation_helper.add_way_locations((middle_t *)m_mid);

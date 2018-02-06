@@ -15,7 +15,7 @@ public:
     lua_tagtransform_t(options_t const *options);
     ~lua_tagtransform_t();
 
-    bool filter_tags(osmium::OSMObject const &o, int *polygon, int *roads,
+    bool filter_tags(osmium::OSMObject const &o, int *polygon, int *roads, int *lanes,
                      export_list const &exlist, taglist_t &out_tags,
                      bool strict = false) override;
 
@@ -23,7 +23,7 @@ public:
                                 osmium::memory::Buffer const &members,
                                 rolelist_t const &member_roles,
                                 int *member_superseded, int *make_boundary,
-                                int *make_polygon, int *roads,
+                                int *make_polygon, int *roads, int *lanes,
                                 export_list const &exlist, taglist_t &out_tags,
                                 bool allow_typeless = false) override;
 

@@ -257,7 +257,7 @@ void output_pgsql_t::stop(osmium::thread::Pool *pool)
 int output_pgsql_t::node_add(osmium::Node const &node)
 {
     taglist_t outtags;
-    output_t::point_type point_type = output_t::p_sign;
+    output_t::point_type point_type = output_t::p_normal;
     if (m_tagtransform->filter_tags(node, nullptr, nullptr, &point_type,
                                     *m_export_list.get(), outtags))
         return 1;

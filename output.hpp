@@ -33,6 +33,14 @@ typedef std::stack<pending_job_t> pending_queue_t;
 
 class output_t : public boost::noncopyable {
 public:
+    enum line_type {
+        l_normal = 0, l_roads, l_lanes
+    };
+
+    enum point_type {
+        p_normal = 0, p_sign
+    };
+
     static std::vector<std::shared_ptr<output_t> > create_outputs(const middle_query_t *mid, const options_t &options);
 
     output_t(const middle_query_t *mid, const options_t &options_);

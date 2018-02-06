@@ -97,7 +97,9 @@ generic_keys = {
     'waterway',
     'wetland',
     'width',
-    'wood'
+    'wood',
+    'momenta',
+    'type'
 }
 
 -- The following keys will be deleted
@@ -156,6 +158,13 @@ function add_z_order(keyvalues)
     return keyvalues, roads, lanes
 end
 
+function check_momenta_sign(keyvalues)
+    if (keyvalues["momenta"] ~= nil) then
+        return true
+    end
+    return false
+end
+
 -- Filtering on nodes, ways, and relations
 function filter_tags_generic(keyvalues, numberofkeys)
     filter = 0   -- Will object be filtered out?
@@ -189,7 +198,7 @@ end
 
 -- Filtering on nodes
 function filter_tags_node (keyvalues, numberofkeys)
-    return filter_tags_generic(keyvalues, numberofkeys)
+    return filter_tags_generic(keyvalues, numberofkeys), check_momenta_sign(keyvalues)
 end
 
 -- Filtering on relations

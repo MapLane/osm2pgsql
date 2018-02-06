@@ -72,7 +72,7 @@ E4C1421D5BF24D06053E7DF4940
 5BF5BB39597FCDF4940
 */
 void output_pgsql_t::pgsql_out_way(osmium::Way const &way, taglist_t *tags,
-                                   bool polygon, bool roads, bool lanes)
+                                   bool polygon, output_t::line_type line_type)
 {
     if (polygon && way.is_closed()) {
         auto wkb = m_builder.get_wkb_polygon(way);
@@ -96,9 +96,9 @@ void output_pgsql_t::pgsql_out_way(osmium::Way const &way, taglist_t *tags,
         for (auto const &wkb : m_builder.get_wkb_line(way.nodes(), split_at)) {
             expire.from_wkb(wkb.c_str(), way.id());
             m_tables[t_line]->write_row(way.id(), *tags, wkb);
-            if (roads) {
+            if (line_type == output_t::l_roads) {
                 m_tables[t_roads]->write_row(way.id(), *tags, wkb);
-            } else if (lanes) {
+            } else if (line_type == output_t::l_lanes) {
                 m_tables[t_lanes]->write_row(way.id(), *tags, wkb);
             }
         }
@@ -163,14 +163,13 @@ int output_pgsql_t::pending_way(osmid_t id, int exists) {
 
         taglist_t outtags;
         int polygon;
-        int roads;
-        int lanes;
+        output_t::line_type line_type = output_t::l_normal;
         auto &way = buffer.get<osmium::Way>(0);
-        if (!m_tagtransform->filter_tags(way, &polygon, &roads, &lanes,
+        if (!m_tagtransform->filter_tags(way, &polygon, &line_type, nullptr,
                                          *m_export_list.get(), outtags)) {
             auto nnodes = m_mid->nodes_get_list(&(way.nodes()));
             if (nnodes > 1) {
-                pgsql_out_way(way, &outtags, polygon, roads, lanes);
+                pgsql_out_way(way, &outtags, polygon, line_type);
                 return 1;
             }
         }
@@ -258,13 +257,17 @@ void output_pgsql_t::stop(osmium::thread::Pool *pool)
 int output_pgsql_t::node_add(osmium::Node const &node)
 {
     taglist_t outtags;
-    if (m_tagtransform->filter_tags(node, nullptr, nullptr, nullptr,
+    output_t::point_type point_type = output_t::p_sign;
+    if (m_tagtransform->filter_tags(node, nullptr, nullptr, &point_type,
                                     *m_export_list.get(), outtags))
         return 1;
 
     auto wkb = m_builder.get_wkb_node(node.location());
     expire.from_wkb(wkb.c_str(), node.id());
     m_tables[t_point]->write_row(node.id(), outtags, wkb);
+    if (point_type == output_t::p_sign) {
+        m_tables[t_sign]->write_row(node.id(), outtags, wkb);
+    }
 
     return 0;
 }
@@ -272,12 +275,11 @@ int output_pgsql_t::node_add(osmium::Node const &node)
 int output_pgsql_t::way_add(osmium::Way *way)
 {
     int polygon = 0;
-    int roads = 0;
-    int lanes = 0;
+    output_t::line_type line_type = output_t::l_normal;
     taglist_t outtags;
 
     /* Check whether the way is: (1) Exportable, (2) Maybe a polygon */
-    auto filter = m_tagtransform->filter_tags(*way, &polygon, &roads, &lanes,
+    auto filter = m_tagtransform->filter_tags(*way, &polygon, &line_type, nullptr,
                                               *m_export_list.get(), outtags);
 
     /* If this isn't a polygon then it can not be part of a multipolygon
@@ -289,7 +291,7 @@ int output_pgsql_t::way_add(osmium::Way *way)
         /* Get actual node data and generate output */
         auto nnodes = m_mid->nodes_get_list(&(way->nodes()));
         if (nnodes > 1) {
-            pgsql_out_way(*way, &outtags, polygon, roads, lanes);
+            pgsql_out_way(*way, &outtags, polygon, line_type);
         }
     }
     return 0;
@@ -321,18 +323,17 @@ int output_pgsql_t::pgsql_process_relation(osmium::Relation const &rel,
     if (num_ways == 0)
         return 0;
 
-  int roads = 0;
-  int lanes = 0;
-  int make_polygon = 0;
-  int make_boundary = 0;
-  std::vector<int> members_superseded(num_ways, 0);
-  taglist_t outtags;
+    output_t::line_type line_type = output_t::l_normal;
+    int make_polygon = 0;
+    int make_boundary = 0;
+    std::vector<int> members_superseded(num_ways, 0);
+    taglist_t outtags;
 
   // If it's a route relation make_boundary and make_polygon will be false
   // otherwise one or the other will be true.
   if (m_tagtransform->filter_rel_member_tags(
           prefiltered_tags, buffer, xrole, &(members_superseded[0]),
-          &make_boundary, &make_polygon, &roads, &lanes, *m_export_list.get(),
+          &make_boundary, &make_polygon, &line_type, *m_export_list.get(),
           outtags)) {
       return 0;
   }
@@ -350,8 +351,11 @@ int output_pgsql_t::pgsql_process_relation(osmium::Relation const &rel,
       for (auto const &wkb : wkbs) {
           expire.from_wkb(wkb.c_str(), -rel.id());
           m_tables[t_line]->write_row(-rel.id(), outtags, wkb);
-          if (roads)
+          if (line_type == output_t::l_roads) {
               m_tables[t_roads]->write_row(-rel.id(), outtags, wkb);
+          } else if (line_type == output_t::l_lanes) {
+              m_tables[t_lanes]->write_row(-rel.id(), outtags, wkb);
+          }
       }
   }
 
@@ -425,6 +429,7 @@ int output_pgsql_t::node_delete(osmid_t osm_id)
         util::exit_nicely();
     }
 
+    m_tables[t_sign]->delete_row(osm_id);
     if ( expire.from_db(m_tables[t_point].get(), osm_id) != 0)
         m_tables[t_point]->delete_row(osm_id);
 
@@ -442,6 +447,7 @@ int output_pgsql_t::pgsql_delete_way_from_output(osmid_t osm_id)
         return 0;
 
     m_tables[t_roads]->delete_row(osm_id);
+    m_tables[t_lanes]->delete_row(osm_id);
     if ( expire.from_db(m_tables[t_line].get(), osm_id) != 0)
         m_tables[t_line]->delete_row(osm_id);
     if ( expire.from_db(m_tables[t_poly].get(), osm_id) != 0)
@@ -464,6 +470,7 @@ int output_pgsql_t::way_delete(osmid_t osm_id)
 int output_pgsql_t::pgsql_delete_relation_from_output(osmid_t osm_id)
 {
     m_tables[t_roads]->delete_row(-osm_id);
+    m_tables[t_lanes]->delete_row(-osm_id);
     if ( expire.from_db(m_tables[t_line].get(), -osm_id) != 0)
         m_tables[t_line]->delete_row(-osm_id);
     if ( expire.from_db(m_tables[t_poly].get(), -osm_id) != 0)
@@ -564,7 +571,7 @@ output_pgsql_t::output_pgsql_t(const middle_query_t *mid, const options_t &o)
     for (int i = 0; i < t_MAX; i++) {
 
         //figure out the columns this table needs
-        columns_t columns = m_export_list->normal_columns((i == t_point)
+        columns_t columns = m_export_list->normal_columns((i == t_point) || (i == t_sign)
                             ? osmium::item_type::node
                             : osmium::item_type::way);
 
@@ -575,6 +582,10 @@ output_pgsql_t::output_pgsql_t(const middle_query_t *mid, const options_t &o)
         {
             case t_point:
                 name += "_point";
+                type = "POINT";
+                break;
+            case t_sign:
+                name += "_sign";
                 type = "POINT";
                 break;
             case t_line:

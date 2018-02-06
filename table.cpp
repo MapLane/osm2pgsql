@@ -136,7 +136,6 @@ void table_t::start()
         if (hstore_mode != HSTORE_NONE) {
             sql += "\"tags\" hstore,";
         }
-        // TODO: add jsonb column to store parameter equation.
 //        sql += (fmt("parameter jsonb(%1%,%2%) )") % type % srid).str();
 
         sql += (fmt("way geometry(%1%,%2%) )") % type % srid).str();

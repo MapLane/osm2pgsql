@@ -19,7 +19,7 @@
 class output_pgsql_t : public output_t {
 public:
     enum table_id {
-        t_point = 0, t_line, t_poly, t_roads, t_lanes, t_MAX
+        t_point = 0, t_sign, t_line, t_poly, t_roads, t_lanes, t_MAX
     };
 
     output_pgsql_t(const middle_query_t* mid_, const options_t &options_);
@@ -57,7 +57,7 @@ public:
 
 protected:
     void pgsql_out_way(osmium::Way const &way, taglist_t *tags, bool polygon,
-                       bool roads, bool lanes);
+                       output_t::line_type line_type);
     int pgsql_process_relation(osmium::Relation const &rel, bool pending);
     int pgsql_delete_way_from_output(osmid_t osm_id);
     int pgsql_delete_relation_from_output(osmid_t osm_id);

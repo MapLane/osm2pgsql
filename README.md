@@ -189,7 +189,7 @@ add hd_lane layer support.
 
 #### Basic
 
-- [ ] Add HD lane layer support.
+- [x] Add HD lane layer support.
 
 #### Enhancement
 

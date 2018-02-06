@@ -107,7 +107,7 @@ bool lua_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
     }
 
     if (o.type() == osmium::item_type::node && (int)lua_tointeger(L, -1)) {
-        *point_type == output_t::p_sign;
+        *point_type = output_t::p_sign;
         lua_pop(L, 1);
     }
 

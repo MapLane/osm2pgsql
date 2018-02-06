@@ -6,6 +6,7 @@
 #include "taginfo_impl.hpp"
 #include "tagtransform-c.hpp"
 #include "wildcmp.hpp"
+#include "output-pgsql.hpp"
 
 namespace {
 
@@ -13,27 +14,32 @@ static const struct
 {
     int offset;
     const char *highway;
-    int roads;
-} layers[] = {{1, "proposed", 0},       {2, "construction", 0},
-              {10, "steps", 0},         {10, "cycleway", 0},
-              {10, "bridleway", 0},     {10, "footway", 0},
-              {10, "path", 0},          {11, "track", 0},
+    int type;
+} layers[] = {{1, "proposed", 0},               {2, "construction", 0},
+              {10, "steps", 0},                 {10, "cycleway", 0},
+              {10, "bridleway", 0},             {10, "footway", 0},
+              {10, "path", 0},                  {11, "track", 0},
               {15, "service", 0},
 
-              {24, "tertiary_link", 0}, {25, "secondary_link", 1},
-              {27, "primary_link", 1},  {28, "trunk_link", 1},
+              {24, "tertiary_link", 0},         {25, "secondary_link", 1},
+              {27, "primary_link", 1},          {28, "trunk_link", 1},
               {29, "motorway_link", 1},
 
-              {30, "raceway", 0},       {31, "pedestrian", 0},
-              {32, "living_street", 0}, {33, "road", 0},
-              {33, "unclassified", 0},  {33, "residential", 0},
-              {34, "tertiary", 0},      {36, "secondary", 1},
-              {37, "primary", 1},       {38, "trunk", 1},
-              {39, "motorway", 1}};
+              {30, "raceway", 0},               {31, "pedestrian", 0},
+              {32, "living_street", 0},         {33, "road", 0},
+              {33, "unclassified", 0},          {33, "residential", 0},
+              {34, "tertiary", 0},              {36, "secondary", 1},
+              {37, "primary", 1},               {38, "trunk", 1},
+              {39, "motorway", 1},
+              {0,  "lane-white-dash", 2},        {0, "lane-white-solid", 2},
+              {0,  "lane-yellow-dash", 2},       {0, "lane-yellow-solid", 2},
+              {0,  "lane-white-dash-double", 2}, {0, "lane-white-solid-double", 2},
+              {0,  "lane-yellow-dash-double", 2}, {0, "lane-yellow-solid-double", 2},
+              {0,  "lane-centerline", 2},        {0, "lane", 2}};
 
 static const unsigned int nLayers = (sizeof(layers) / sizeof(*layers));
 
-void add_z_order(taglist_t &tags, int *roads)
+void add_z_order(taglist_t &tags, output_t::line_type *line_type)
 {
     const std::string *layer = tags.get("layer");
     const std::string *highway = tags.get("highway");
@@ -46,13 +52,16 @@ void add_z_order(taglist_t &tags, int *roads)
 
     int l = layer ? (int)strtol(layer->c_str(), NULL, 10) : 0;
     z_order = 100 * l;
-    *roads = 0;
 
     if (highway) {
         for (unsigned i = 0; i < nLayers; i++) {
             if (!strcmp(layers[i].highway, highway->c_str())) {
                 z_order += layers[i].offset;
-                *roads = layers[i].roads;
+                if (layers[i].type == 1) {
+                    *line_type = output_t::l_roads;
+                } else if (layers[i].type == 2) {
+                    *line_type = output_t::l_lanes;
+                }
                 break;
             }
         }
@@ -60,11 +69,11 @@ void add_z_order(taglist_t &tags, int *roads)
 
     if (railway && !railway->empty()) {
         z_order += 35;
-        *roads = 1;
+        *line_type = output_t::line_type::l_roads;
     }
     /* Administrative boundaries are rendered at low zooms so we prefer to use the roads table */
     if (boundary && *boundary == "administrative")
-        *roads = 1;
+        *line_type = output_t::line_type::l_roads;
 
     if (bridge)
         z_order += 100;
@@ -75,6 +84,10 @@ void add_z_order(taglist_t &tags, int *roads)
     char z[13];
     snprintf(z, sizeof(z), "%d", z_order);
     tags.push_back(tag_t("z_order", z));
+}
+
+bool check_momenta_sign(taglist_t &tags) {
+    return tags.get("momenta") != nullptr;
 }
 
 } // anonymous namespace
@@ -134,7 +147,8 @@ bool c_tagtransform_t::check_key(std::vector<taginfo> const &infos,
 }
 
 bool c_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
-                                   int *roads, export_list const &exlist,
+                                   output_t::line_type *line_type,
+                                   output_t::point_type *point_type ,export_list const &exlist,
                                    taglist_t &out_tags, bool strict)
 {
     //assume we dont like this set of tags
@@ -197,8 +211,11 @@ bool c_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
         }
     }
 
-    if (roads && !filter && (o.type() == osmium::item_type::way)) {
-        add_z_order(out_tags, roads);
+    if (!filter && (o.type() == osmium::item_type::way)) {
+        add_z_order(out_tags, line_type);
+    }
+    if (!filter && (o.type() == osmium::item_type::node) && check_momenta_sign(out_tags)) {
+        *point_type = output_t::p_sign;
     }
 
     return filter;
@@ -207,7 +224,7 @@ bool c_tagtransform_t::filter_tags(osmium::OSMObject const &o, int *polygon,
 bool c_tagtransform_t::filter_rel_member_tags(
     taglist_t const &rel_tags, osmium::memory::Buffer const &members,
     rolelist_t const &member_roles, int *member_superseded, int *make_boundary,
-    int *make_polygon, int *roads, export_list const &exlist,
+    int *make_polygon, output_t::line_type *line_type, export_list const &exlist,
     taglist_t &out_tags, bool allow_typeless)
 {
     auto const &infos = exlist.get(osmium::item_type::way);
@@ -415,7 +432,7 @@ bool c_tagtransform_t::filter_rel_member_tags(
         }
     }
 
-    add_z_order(out_tags, roads);
+    add_z_order(out_tags, line_type);
 
     return 0;
 }

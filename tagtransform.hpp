@@ -6,6 +6,7 @@
 #include <osmium/memory/buffer.hpp>
 
 #include "osmtypes.hpp"
+#include "output.hpp"
 
 struct options_t;
 struct export_list;
@@ -19,7 +20,8 @@ public:
     virtual ~tagtransform_t() = 0;
 
     virtual bool filter_tags(osmium::OSMObject const &o, int *polygon,
-                             int *roads, export_list const &exlist,
+                             output_t::line_type *line_type,
+                             output_t::point_type *point_type ,export_list const &exlist,
                              taglist_t &out_tags, bool strict = false) = 0;
 
     virtual bool filter_rel_member_tags(taglist_t const &rel_tags,
@@ -27,7 +29,7 @@ public:
                                         rolelist_t const &member_roles,
                                         int *member_superseded,
                                         int *make_boundary, int *make_polygon,
-                                        int *roads, export_list const &exlist,
+                                        output_t::line_type *line_type, export_list const &exlist,
                                         taglist_t &out_tags,
                                         bool allow_typeless = false) = 0;
 };
